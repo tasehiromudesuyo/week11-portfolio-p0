@@ -161,3 +161,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+.form-control input,
+.form-control select,
+.form-control textarea {
+  width: 100%;
+  border: 1px solid #d5e1e9;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.8rem 0.9rem;
+  font-size: 0.95rem;
+  color: #333;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.form-control input:focus,
+.form-control select:focus,
+.form-control textarea:focus {
+  border-color: #2878b8;
+  box-shadow: 0 0 0 3px rgb(40 120 184 / 12%);
+}
+
+.form-control textarea {
+  resize: vertical;
+}
