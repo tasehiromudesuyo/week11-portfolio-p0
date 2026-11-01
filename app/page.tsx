@@ -25,7 +25,8 @@ export default function Page() {
     }
     setStep('confirm')
   }
-// Supabaseへデータを送信する関数
+
+  // Supabaseへデータを送信する関数
   async function handleInsert() {
     try {
       const { data, error } = await supabase
@@ -51,6 +52,7 @@ export default function Page() {
       alert('送信に失敗しました: ' + err.message)
     }
   }
+
   return (
     <main className="min-h-screen bg-[#f5f9fc] text-[#333]">
       <header className="border-b border-[#e5e7eb] bg-white">
@@ -84,13 +86,13 @@ export default function Page() {
           </form>
         </section>}
 
-        {step === 'confirm' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10"><p className="mb-2 text-sm font-bold text-[#2878b8]">PLEASE CHECK</p><h1 className="text-2xl font-bold text-[#174c74]">お問い合わせ内容の確認</h1><p className="mt-3 text-sm text-[#777]">入力内容をご確認ください。問題なければ送信してください。</p><div className="mt-8 overflow-hidden rounded-xl border border-[#e5e7eb]">{[['お名前', form.name], ['メールアドレス', form.email], ['電話番号', form.phone || '未入力'], ['相談区分', form.type], ['対象部位・種類', form.part], ['相談内容', form.details], ['添付ファイル', file?.name || 'なし']].map(([label, value]) => <div key={label} className="grid gap-2 border-b border-[#edf0f2] px-4 py-4 last:border-0 sm:grid-cols-[150px_1fr]"><dt className="text-sm font-semibold text-[#777]">{label}</dt><dd className="whitespace-pre-wrap text-sm leading-6 text-[#333]">{value}</dd></div>)}</div><div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button onClick={() => setStep('form')} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#b9d1e1] px-6 font-semibold text-[#2878b8]"><ChevronLeft />戻って修正する<button onClick={handleInsert} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white hover:bg-[#1f679f]">入力・送信</button></div></section>}
+        {step === 'confirm' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10"><p className="mb-2 text-sm font-bold text-[#2878b8]">PLEASE CHECK</p><h1 className="text-2xl font-bold text-[#174c74]">お問い合わせ内容の確認</h1><p className="mt-3 text-sm text-[#777]">入力内容をご確認ください。問題なければ送信してください。</p><div className="mt-8 overflow-hidden rounded-xl border border-[#e5e7eb]">{[['お名前', form.name], ['メールアドレス', form.email], ['電話番号', form.phone || '未入力'], ['相談区分', form.type], ['対象部位・種類', form.part], ['相談内容', form.details], ['添付ファイル', file?.name || 'なし']].map(([label, value]) => <div key={label} className="grid gap-2 border-b border-[#edf0f2] px-4 py-4 last:border-0 sm:grid-cols-[150px_1fr]"><dt className="text-sm font-semibold text-[#777]">{label}</dt><dd className="whitespace-pre-wrap text-sm leading-6 text-[#333]">{value}</dd></div>)}</div><div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button onClick={() => setStep('form')} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#b9d1e1] px-6 font-semibold text-[#2878b8]"><ChevronLeft />戻って修正する</button><button onClick={handleInsert} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white hover:bg-[#1f679f]">入力・送信</button></div></section>}
 
         {step === 'complete' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white px-6 py-14 text-center shadow-sm sm:px-10"><div className="mx-auto flex size-20 items-center justify-center rounded-full bg-[#e7f6ee] text-[#2c9a63]"><Check className="size-10" /></div><h1 className="mt-7 text-2xl font-bold text-[#174c74]">受付完了しました</h1><p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#666]">お問い合わせありがとうございます。担当者が内容を確認し、必要に応じてご連絡いたします。</p><button onClick={() => { setForm(initialForm); setFile(null); setStep('form') }} className="mt-9 min-h-12 rounded-lg bg-[#2878b8] px-10 font-bold text-white hover:bg-[#1f679f]">トップへ戻る</button></section>}
 
         <section id="insurance" className="mx-auto mt-12 max-w-2xl rounded-2xl bg-[#eaf3fa] p-6 sm:p-8"><div className="flex gap-4"><ShieldCheck className="mt-1 shrink-0 text-[#2878b8]" /><div><h2 className="font-bold text-[#174c74]">健康保険について</h2><p className="mt-2 text-sm leading-6 text-[#567]">健康保険に関する詳しいご案内は、準備が整い次第公開します。ご不明な点はお問い合わせください。</p><a href="#" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#2878b8]">詳しく見る <ChevronRight /></a></div></div></section>
       </div>
-      <footer className="border-t border-[#e5e7eb] bg-white px-5 py-6 text-center text-xs text-[#888]">© 2026 あおぞら義肢装具　｜　個人情報保護方針</footer>
+      <footer className="border-t border-[#e5e7eb] bg-white px-5 py-6 text-center text-xs text-[#888]">© 2026 あおぞら義肢装具 ｜ 個人情報保護方針</footer>
     </main>
   )
 }
@@ -98,4 +100,3 @@ export default function Page() {
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return <div className="flex flex-col gap-2"><label className="text-sm font-bold text-[#444]">{label} {required && <span className="ml-1 rounded bg-[#fff1e6] px-2 py-1 text-[11px] font-semibold text-[#c87534]">必須</span>}</label>{hint && <p className="-mt-1 text-xs text-[#888]">{hint}</p>}<div className="form-control">{children}</div></div>
 }
-
