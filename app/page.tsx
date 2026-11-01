@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, Paperclip, ShieldCheck } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, Paperclip, ShieldCheck, LogOut, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const initialForm = { name: '', email: '', phone: '', type: '', part: '', details: '', consent: false }
@@ -11,6 +11,25 @@ export default function Page() {
   const [form, setForm] = useState(initialForm)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState('')
+
+  // 認証用のState
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [user, setUser] = useState<any>(null)
+  const [authLoading, setAuthLoading] = useState(false)
+
+  // ログイン状態の監視
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   function update(key: keyof typeof initialForm, value: string | boolean) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -39,18 +58,62 @@ export default function Page() {
             category: form.type,
             target_part: form.part,
             content: form.details,
-            file_url: file ? file.name : null, // 添付ファイル名（またはなし）
+            file_url: file ? file.name : null,
           }
         ])
 
       if (error) throw error
-
-      // 送信成功したら完了画面へ進む
       setStep('complete')
     } catch (err: any) {
       console.error('送信エラー:', err.message)
       alert('送信に失敗しました: ' + err.message)
     }
+  }
+
+  // 1. 新規登録（サインアップ）
+  async function handleSignUp() {
+    if (!authEmail || !authPassword) {
+      alert('メールアドレスとパスワードを入力してください。')
+      return
+    }
+    setAuthLoading(true)
+    const { error } = await supabase.auth.signUp({
+      email: authEmail,
+      password: authPassword,
+    })
+    setAuthLoading(false)
+
+    if (error) {
+      alert('登録エラー: ' + error.message)
+      return
+    }
+    alert('新規登録が完了しました！ログイン状態になりました。')
+  }
+
+  // 2. ログイン（サインイン）
+  async function handleSignIn() {
+    if (!authEmail || !authPassword) {
+      alert('メールアドレスとパスワードを入力してください。')
+      return
+    }
+    setAuthLoading(true)
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authEmail,
+      password: authPassword,
+    })
+    setAuthLoading(false)
+
+    if (error) {
+      alert('ログインエラー: ' + error.message)
+      return
+    }
+    alert('ログインしました！')
+  }
+
+  // 3. ログアウト（サインアウト）
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    alert('ログアウトしました。')
   }
 
   return (
@@ -65,9 +128,63 @@ export default function Page() {
         </div>
       </header>
 
+      {/* 認証状態バー / ログインフォーム */}
+      <div className="bg-[#edf4f9] border-b border-[#d8e4ec] py-3 px-5">
+        <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+          {user ? (
+            <div className="flex items-center gap-3 w-full justify-between sm:justify-start">
+              <div className="flex items-center gap-2 text-[#174c74] font-semibold">
+                <User className="size-4 text-[#2878b8]" />
+                <span>ログイン中: {user.email}</span>
+              </div>
+              <button 
+                onClick={handleSignOut}
+                className="flex items-center gap-1 rounded bg-white border border-[#b9d1e1] px-3 py-1.5 text-xs font-bold text-[#2878b8] hover:bg-[#f0f7fb]"
+              >
+                <LogOut className="size-3" /> サインアウト
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full justify-between">
+              <span className="text-xs font-semibold text-[#567]">マイページ機能を利用するにはログインしてください</span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input 
+                  type="email" 
+                  placeholder="メールアドレス" 
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="rounded border border-[#b9d1e1] bg-white px-3 py-1 text-xs w-full sm:w-48"
+                />
+                <input 
+                  type="password" 
+                  placeholder="パスワード" 
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="rounded border border-[#b9d1e1] bg-white px-3 py-1 text-xs w-full sm:w-36"
+                />
+                <button 
+                  onClick={handleSignIn}
+                  disabled={authLoading}
+                  className="rounded bg-[#2878b8] px-3 py-1 text-xs font-bold text-white hover:bg-[#1f679f] whitespace-nowrap"
+                >
+                  ログイン
+                </button>
+                <button 
+                  onClick={handleSignUp}
+                  disabled={authLoading}
+                  className="rounded bg-white border border-[#2878b8] px-3 py-1 text-xs font-bold text-[#2878b8] hover:bg-[#f0f7fb] whitespace-nowrap"
+                >
+                  新規登録
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-14">
         <div className="mb-9 flex items-center justify-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
-          {['入力', '確認', '完了'].map((label, index) => { const active = (step === 'form' ? 0 : step === 'confirm' ? 1 : 2) >= index; return <div key={label} className="flex items-center gap-2"><span className={`flex size-8 items-center justify-center rounded-full ${active ? 'bg-[#2878b8] text-white' : 'bg-[#e5edf3] text-[#789]'} `}>{active && index < (step === 'form' ? 0 : step === 'confirm' ? 1 : 2) ? <Check /> : index + 1}</span><span className={active ? 'text-[#2878b8]' : 'text-[#8a9aa8'}>{label}</span>{index < 2 && <span className="mx-1 h-px w-8 bg-[#d8e4ec] sm:w-16" />}</div> })}
+          {['入力', '確認', '完了'].map((label, index) => { const active = (step === 'form' ? 0 : step === 'confirm' ? 1 : 2) >= index; return <div key={label} className="flex items-center gap-2"><span className={`flex size-8 items-center justify-center rounded-full ${active ? 'bg-[#2878b8] text-white' : 'bg-[#e5edf3] text-[#789]'} `}>{active && index < (step === 'form' ? 0 : step === 'confirm' ? 1 : 2) ? <Check /> : index + 1}</span><span className={active ? 'text-[#2878b8]' : 'text-[#8a9aa8]'}>{label}</span>{index < 2 && <span className="mx-1 h-px w-8 bg-[#d8e4ec] sm:w-16" />}</div> })}
         </div>
 
         {step === 'form' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10">
