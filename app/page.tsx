@@ -1,219 +1,82 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, Paperclip, ShieldCheck, LogOut, User } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { useMemo, useState } from 'react'
+import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, LogOut, Paperclip, Search, ShieldCheck, X } from 'lucide-react'
+
+type View = 'contact' | 'insurance' | 'admin'
+type Status = 'pending' | 'in_progress' | 'completed'
+
+type Inquiry = {
+  id: string
+  name: string
+  email: string
+  phone: string
+  type: string
+  part: string
+  details: string
+  file: string | null
+  status: Status
+  createdAt: string
+}
 
 const initialForm = { name: '', email: '', phone: '', type: '', part: '', details: '', consent: false }
+const demoInquiries: Inquiry[] = [
+  { id: 'INQ-2026-0012', name: '山田 太郎', email: 'taro.yamada@example.jp', phone: '090-1234-5678', type: '調整・修理について', part: '義足', details: '歩くときに膝のあたりが少し痛みます。調整について相談したいです。', file: '歩行時の写真.jpg', status: 'pending', createdAt: '2026/11/03 09:42' },
+  { id: 'INQ-2026-0011', name: '佐藤 花子', email: 'hanako.sato@example.jp', phone: '080-9876-5432', type: '書類・保険について', part: '装具（足・膝・腰など）', details: '申請に必要な書類について教えてください。', file: null, status: 'in_progress', createdAt: '2026/11/02 16:18' },
+  { id: 'INQ-2026-0010', name: '鈴木 一郎', email: 'ichiro.suzuki@example.jp', phone: '070-1111-2222', type: '新しく作りたい', part: '義手', details: '初めて義手を作る場合の流れを知りたいです。', file: '現在の状態.pdf', status: 'completed', createdAt: '2026/11/01 11:05' },
+]
 
 export default function Page() {
+  const [view, setView] = useState<View>('contact')
   const [step, setStep] = useState<'form' | 'confirm' | 'complete'>('form')
   const [form, setForm] = useState(initialForm)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState('')
+  const [inquiries, setInquiries] = useState(demoInquiries)
+  const [selected, setSelected] = useState<Inquiry | null>(null)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
 
-  // 認証用のState
-  const [authEmail, setAuthEmail] = useState('')
-  const [authPassword, setAuthPassword] = useState('')
-  const [user, setUser] = useState<any>(null)
-  const [authLoading, setAuthLoading] = useState(false)
+  const filtered = useMemo(() => inquiries.filter((item) => {
+    const matchesQuery = `${item.name} ${item.id} ${item.part}`.toLowerCase().includes(query.toLowerCase())
+    return matchesQuery && (statusFilter === 'all' || item.status === statusFilter)
+  }), [inquiries, query, statusFilter])
 
-  // ログイン状態の監視
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  function update(key: keyof typeof initialForm, value: string | boolean) {
-    setForm((current) => ({ ...current, [key]: value }))
-    setError('')
-  }
-
+  function update(key: keyof typeof initialForm, value: string | boolean) { setForm((current) => ({ ...current, [key]: value })); setError('') }
   function review(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!form.name || !form.email || !form.type || !form.part || !form.details || !form.consent) {
-      setError('必須項目を入力し、個人情報保護方針に同意してください。')
-      return
-    }
+    if (!form.name || !form.email || !form.type || !form.part || !form.details || !form.consent) { setError('必須項目を入力し、個人情報保護方針に同意してください。'); return }
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) { setError('メールアドレスの形式をご確認ください。'); return }
+    if (form.phone && !/^[0-9０-９+\-()（）\s]+$/.test(form.phone)) { setError('電話番号の形式をご確認ください。'); return }
+    if (file && file.size > 10 * 1024 * 1024) { setError('添付ファイルは10MB以内にしてください。'); return }
     setStep('confirm')
   }
-
-  // Supabaseへデータを送信する関数
-  async function handleInsert() {
-    try {
-      const { data, error } = await supabase
-        .from('inquiries')
-        .insert([
-          {
-            name: form.name,
-            email: form.email,
-            phone: form.phone || null,
-            category: form.type,
-            target_part: form.part,
-            content: form.details,
-            file_url: file ? file.name : null,
-          }
-        ])
-
-      if (error) throw error
-      setStep('complete')
-    } catch (err: any) {
-      console.error('送信エラー:', err.message)
-      alert('送信に失敗しました: ' + err.message)
-    }
+  function submitDemo() {
+    setInquiries((items) => [{ id: `INQ-2026-${String(items.length + 13).padStart(4, '0')}`, name: form.name, email: form.email, phone: form.phone, type: form.type, part: form.part, details: form.details, file: file?.name ?? null, status: 'pending', createdAt: '2026/11/03 10:00' }, ...items])
+    setStep('complete')
   }
+  function updateStatus(status: Status) { if (!selected) return; setInquiries((items) => items.map((item) => item.id === selected.id ? { ...item, status } : item)); setSelected({ ...selected, status }) }
+  const statusLabel: Record<Status, string> = { pending: '未対応', in_progress: '対応中', completed: '完了' }
 
-  // 1. 新規登録（サインアップ）
-  async function handleSignUp() {
-    if (!authEmail || !authPassword) {
-      alert('メールアドレスとパスワードを入力してください。')
-      return
-    }
-    setAuthLoading(true)
-    const { error } = await supabase.auth.signUp({
-      email: authEmail,
-      password: authPassword,
-    })
-    setAuthLoading(false)
-
-    if (error) {
-      alert('登録エラー: ' + error.message)
-      return
-    }
-    alert('新規登録が完了しました！ログイン状態になりました。')
-  }
-
-  // 2. ログイン（サインイン）
-  async function handleSignIn() {
-    if (!authEmail || !authPassword) {
-      alert('メールアドレスとパスワードを入力してください。')
-      return
-    }
-    setAuthLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: authEmail,
-      password: authPassword,
-    })
-    setAuthLoading(false)
-
-    if (error) {
-      alert('ログインエラー: ' + error.message)
-      return
-    }
-    alert('ログインしました！')
-  }
-
-  // 3. ログアウト（サインアウト）
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    alert('ログアウトしました。')
-  }
-
-  return (
-    <main className="min-h-screen bg-[#f5f9fc] text-[#333]">
-      <header className="border-b border-[#e5e7eb] bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-[#2878b8] text-white"><HeartHandshake /></div>
-            <div><p className="text-lg font-bold tracking-wide text-[#174c74]">あおぞら義肢装具</p><p className="text-xs text-[#777]">いつでも、安心してご相談ください</p></div>
-          </div>
-          <a href="#insurance" className="hidden text-sm font-semibold text-[#2878b8] sm:block">健康保険について</a>
-        </div>
-      </header>
-
-      {/* 認証状態バー / ログインフォーム */}
-      <div className="bg-[#edf4f9] border-b border-[#d8e4ec] py-3 px-5">
-        <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
-          {user ? (
-            <div className="flex items-center gap-3 w-full justify-between sm:justify-start">
-              <div className="flex items-center gap-2 text-[#174c74] font-semibold">
-                <User className="size-4 text-[#2878b8]" />
-                <span>ログイン中: {user.email}</span>
-              </div>
-              <button 
-                onClick={handleSignOut}
-                className="flex items-center gap-1 rounded bg-white border border-[#b9d1e1] px-3 py-1.5 text-xs font-bold text-[#2878b8] hover:bg-[#f0f7fb]"
-              >
-                <LogOut className="size-3" /> サインアウト
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full justify-between">
-              <span className="text-xs font-semibold text-[#567]">マイページ機能を利用するにはログインしてください</span>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <input 
-                  type="email" 
-                  placeholder="メールアドレス" 
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  className="rounded border border-[#b9d1e1] bg-white px-3 py-1 text-xs w-full sm:w-48"
-                />
-                <input 
-                  type="password" 
-                  placeholder="パスワード" 
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  className="rounded border border-[#b9d1e1] bg-white px-3 py-1 text-xs w-full sm:w-36"
-                />
-                <button 
-                  onClick={handleSignIn}
-                  disabled={authLoading}
-                  className="rounded bg-[#2878b8] px-3 py-1 text-xs font-bold text-white hover:bg-[#1f679f] whitespace-nowrap"
-                >
-                  ログイン
-                </button>
-                <button 
-                  onClick={handleSignUp}
-                  disabled={authLoading}
-                  className="rounded bg-white border border-[#2878b8] px-3 py-1 text-xs font-bold text-[#2878b8] hover:bg-[#f0f7fb] whitespace-nowrap"
-                >
-                  新規登録
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+  return <main className="min-h-screen bg-[#f7fafc] text-[#333]">
+    <header className="border-b border-[#e5e7eb] bg-white">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
+        <button onClick={() => setView('contact')} className="flex items-center gap-3 text-left"><span className="flex size-11 items-center justify-center rounded-xl bg-[#2878b8] text-white"><HeartHandshake /></span><span><strong className="block text-lg tracking-wide text-[#174c74]">あおぞら義肢装具</strong><small className="text-xs text-[#777]">いつでも、安心してご相談ください</small></span></button>
+        <nav className="flex items-center gap-2 text-sm font-semibold"><button onClick={() => setView('insurance')} className={`rounded-lg px-3 py-2 ${view === 'insurance' ? 'bg-[#eaf3fa] text-[#2878b8]' : 'text-[#567]'}`}>健康保険について</button><button onClick={() => setView('admin')} className={`rounded-lg px-3 py-2 ${view === 'admin' ? 'bg-[#eaf3fa] text-[#2878b8]' : 'text-[#567]'}`}>管理者画面</button></nav>
       </div>
+    </header>
 
-      <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-14">
-        <div className="mb-9 flex items-center justify-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
-          {['入力', '確認', '完了'].map((label, index) => { const active = (step === 'form' ? 0 : step === 'confirm' ? 1 : 2) >= index; return <div key={label} className="flex items-center gap-2"><span className={`flex size-8 items-center justify-center rounded-full ${active ? 'bg-[#2878b8] text-white' : 'bg-[#e5edf3] text-[#789]'} `}>{active && index < (step === 'form' ? 0 : step === 'confirm' ? 1 : 2) ? <Check /> : index + 1}</span><span className={active ? 'text-[#2878b8]' : 'text-[#8a9aa8]'}>{label}</span>{index < 2 && <span className="mx-1 h-px w-8 bg-[#d8e4ec] sm:w-16" />}</div> })}
-        </div>
+    {view === 'contact' && <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-14"><div className="mb-9 flex items-center justify-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">{['入力', '確認', '完了'].map((label, index) => { const current = step === 'form' ? 0 : step === 'confirm' ? 1 : 2; return <div key={label} className="flex items-center gap-2"><span className={`flex size-8 items-center justify-center rounded-full ${index <= current ? 'bg-[#2878b8] text-white' : 'bg-[#e5edf3] text-[#789]'}`}>{index < current ? <Check /> : index + 1}</span><span className={index <= current ? 'text-[#2878b8]' : 'text-[#8a9aa8]'}>{label}</span>{index < 2 && <span className="h-px w-8 bg-[#d8e4ec] sm:w-16" />}</div> })}</div>{step === 'form' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10"><p className="mb-2 text-sm font-bold text-[#2878b8]">CONTACT FORM</p><h1 className="text-2xl font-bold text-[#174c74] sm:text-3xl">お問い合わせ</h1><p className="mt-3 text-sm leading-7 text-[#777]">義肢装具に関するご相談を、24時間いつでも受け付けています。内容を確認のうえ、担当者よりご連絡いたします。</p><form onSubmit={review} className="mt-8 flex flex-col gap-6"><Field label="お名前" required><input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="例：山田 太郎" /></Field><Field label="メールアドレス" required><input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="例：info@example.jp" /></Field><Field label="電話番号" hint="日中ご連絡のつきやすい番号"><input value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="例：090-0000-0000" /></Field><Field label="相談区分" required><select value={form.type} onChange={(e) => update('type', e.target.value)}><option value="">選択してください</option><option>新しく作りたい</option><option>調整・修理について</option><option>書類・保険について</option><option>その他</option></select></Field><Field label="対象部位・種類" required><select value={form.part} onChange={(e) => update('part', e.target.value)}><option value="">選択してください</option><option>義足</option><option>義手</option><option>装具（足・膝・腰など）</option><option>その他</option></select></Field><Field label="相談内容詳細" required hint="症状やお困りのことをできるだけ詳しくご記入ください"><textarea rows={5} value={form.details} onChange={(e) => update('details', e.target.value)} placeholder="ご相談内容をご入力ください" /></Field><Field label="写真・処方箋ファイル" hint="JPG / PNG / PDF（10MBまで）"><label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#b9d1e1] bg-[#f7fbfd] px-4 py-4 text-sm text-[#567]"><Paperclip className="text-[#2878b8]" /><span>{file ? file.name : 'ファイルを選択してください'}</span><input className="sr-only" type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label></Field><label className="flex items-start gap-3 text-sm leading-6 text-[#555]"><input className="mt-1 size-4 accent-[#2878b8]" type="checkbox" checked={form.consent} onChange={(e) => update('consent', e.target.checked)} /><span><a href="#privacy" className="font-semibold text-[#2878b8] underline">個人情報保護方針</a>に同意する <b className="ml-1 rounded bg-[#fff1e6] px-2 py-1 text-xs font-semibold text-[#c87534]">必須</b></span></label>{error && <p className="rounded-lg bg-[#fff3f1] px-4 py-3 text-sm text-[#c24b3d]" role="alert">{error}</p>}<button className="flex min-h-14 items-center justify-center gap-2 rounded-lg bg-[#2878b8] px-6 text-base font-bold text-white hover:bg-[#1f679f]" type="submit">確認画面へ進む <ChevronRight /></button></form></section>}{step === 'confirm' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10"><p className="mb-2 text-sm font-bold text-[#2878b8]">PLEASE CHECK</p><h1 className="text-2xl font-bold text-[#174c74]">お問い合わせ内容の確認</h1><div className="mt-8 overflow-hidden rounded-xl border border-[#e5e7eb]">{[['お名前', form.name], ['メールアドレス', form.email], ['電話番号', form.phone || '未入力'], ['相談区分', form.type], ['対象部位・種類', form.part], ['相談内容', form.details], ['添付ファイル', file?.name || 'なし']].map(([label, value]) => <div key={label} className="grid gap-2 border-b border-[#edf0f2] px-4 py-4 last:border-0 sm:grid-cols-[150px_1fr]"><dt className="text-sm font-semibold text-[#777]">{label}</dt><dd className="whitespace-pre-wrap text-sm leading-6">{value}</dd></div>)}</div><div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button onClick={() => setStep('form')} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#b9d1e1] px-6 font-semibold text-[#2878b8]"><ChevronLeft />戻って修正する</button><button onClick={submitDemo} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white">入力・送信</button></div></section>}{step === 'complete' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white px-6 py-14 text-center shadow-sm sm:px-10"><div className="mx-auto flex size-20 items-center justify-center rounded-full bg-[#e7f6ee] text-[#2c9a63]"><Check className="size-10" /></div><h1 className="mt-7 text-2xl font-bold text-[#174c74]">お問い合わせを受け付けました</h1><p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#666]">内容を確認のうえ、担当者よりご連絡いたします。お問い合わせありがとうございました。</p><button onClick={() => { setForm(initialForm); setFile(null); setStep('form') }} className="mt-9 min-h-12 rounded-lg bg-[#2878b8] px-10 font-bold text-white">トップへ戻る</button></section>}<InfoCard onClick={() => setView('insurance')} /></div>}
 
-        {step === 'form' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10">
-          <div className="mb-8"><p className="mb-2 text-sm font-bold text-[#2878b8]">CONTACT FORM</p><h1 className="text-2xl font-bold text-[#174c74] sm:text-3xl">お問い合わせ</h1><p className="mt-3 text-sm leading-7 text-[#777]">義肢装具に関するご相談を、24時間いつでも受け付けています。内容を確認のうえ、担当者よりご連絡いたします。</p></div>
-          <form onSubmit={review} className="flex flex-col gap-6">
-            <Field label="お名前" required><input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="例：山田 太郎" /></Field>
-            <Field label="メールアドレス" required><input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="例：info@example.jp" /></Field>
-            <Field label="電話番号" hint="日中ご連絡のつきやすい番号"><input value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="例：090-0000-0000" /></Field>
-            <Field label="相談区分" required><select value={form.type} onChange={(e) => update('type', e.target.value)}><option value="">選択してください</option><option>新しく作りたい</option><option>調整・修理について</option><option>書類・保険について</option><option>その他</option></select></Field>
-            <Field label="対象部位・種類" required><select value={form.part} onChange={(e) => update('part', e.target.value)}><option value="">選択してください</option><option>義足</option><option>義手</option><option>装具（足・膝・腰など）</option><option>その他</option></select></Field>
-            <Field label="相談内容" required hint="症状やお困りのことをできるだけ詳しくご記入ください"><textarea rows={5} value={form.details} onChange={(e) => update('details', e.target.value)} placeholder="ご相談内容をご入力ください" /></Field>
-            <Field label="写真・処方箋ファイル" hint="JPG / PNG / PDF（10MBまで）"><label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#b9d1e1] bg-[#f7fbfd] px-4 py-4 text-sm text-[#567] hover:bg-[#eef7fb]"><Paperclip className="text-[#2878b8]" /><span>{file ? file.name : 'ファイルを選択してください'}</span><input className="sr-only" type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label></Field>
-            <label className="flex items-start gap-3 text-sm leading-6 text-[#555]"><input className="mt-1 size-4 accent-[#2878b8]" type="checkbox" checked={form.consent} onChange={(e) => update('consent', e.target.checked)} /><span><a href="#privacy" className="font-semibold text-[#2878b8] underline">個人情報保護方針</a>に同意する <b className="ml-1 rounded bg-[#fff1e6] px-2 py-1 text-xs font-semibold text-[#c87534]">必須</b></span></label>
-            {error && <p className="rounded-lg bg-[#fff3f1] px-4 py-3 text-sm text-[#c24b3d]" role="alert">{error}</p>}
-            <button className="flex min-h-14 items-center justify-center gap-2 rounded-lg bg-[#2878b8] px-6 text-base font-bold text-white shadow-sm transition hover:bg-[#1f679f]" type="submit">確認画面へ進む <ChevronRight /></button>
-          </form>
-        </section>}
+    {view === 'insurance' && <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8"><section className="rounded-2xl border border-[#e4edf3] bg-white p-7 shadow-sm sm:p-10"><ShieldCheck className="text-[#2878b8]" /><h1 className="mt-5 text-3xl font-bold text-[#174c74]">健康保険について</h1><p className="mt-4 text-sm leading-7 text-[#666]">義肢装具に関する健康保険のご案内を、保険の種類ごとにご確認いただけます。具体的な適用条件や給付内容は、担当窓口へご確認ください。</p><div className="mt-8 grid gap-4 sm:grid-cols-2">{['健康保険（協会けんぽ）','国民健康保険','後期高齢者医療制度','その他の公的制度'].map((name) => <button key={name} className="flex items-center justify-between rounded-xl border border-[#d9e6ef] p-5 text-left font-bold text-[#174c74] hover:border-[#2878b8] hover:bg-[#f7fbfd]">{name}<ChevronRight className="text-[#2878b8]" /></button>)}</div><button onClick={() => setView('contact')} className="mt-9 flex items-center gap-2 font-bold text-[#2878b8]"><ChevronLeft />お問い合わせへ戻る</button></section></div>}
 
-        {step === 'confirm' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white p-6 shadow-sm sm:p-10"><p className="mb-2 text-sm font-bold text-[#2878b8]">PLEASE CHECK</p><h1 className="text-2xl font-bold text-[#174c74]">お問い合わせ内容の確認</h1><p className="mt-3 text-sm text-[#777]">入力内容をご確認ください。問題なければ送信してください。</p><div className="mt-8 overflow-hidden rounded-xl border border-[#e5e7eb]">{[['お名前', form.name], ['メールアドレス', form.email], ['電話番号', form.phone || '未入力'], ['相談区分', form.type], ['対象部位・種類', form.part], ['相談内容', form.details], ['添付ファイル', file?.name || 'なし']].map(([label, value]) => <div key={label} className="grid gap-2 border-b border-[#edf0f2] px-4 py-4 last:border-0 sm:grid-cols-[150px_1fr]"><dt className="text-sm font-semibold text-[#777]">{label}</dt><dd className="whitespace-pre-wrap text-sm leading-6 text-[#333]">{value}</dd></div>)}</div><div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button onClick={() => setStep('form')} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#b9d1e1] px-6 font-semibold text-[#2878b8]"><ChevronLeft />戻って修正する</button><button onClick={handleInsert} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white hover:bg-[#1f679f]">入力・送信</button></div></section>}
+    {view === 'admin' && <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8"><div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-bold text-[#2878b8]">ADMIN CONSOLE</p><h1 className="mt-1 text-3xl font-bold text-[#174c74]">お問い合わせ管理</h1><p className="mt-2 text-sm text-[#777]">受信したお問い合わせを確認・管理できます。</p></div><button onClick={() => setView('contact')} className="flex items-center gap-2 rounded-lg border border-[#d9e6ef] bg-white px-4 py-2 text-sm font-semibold text-[#567]"><LogOut />ログアウト</button></div><div className="mb-5 flex flex-col gap-3 rounded-xl border border-[#e4edf3] bg-white p-4 sm:flex-row"><label className="flex flex-1 items-center gap-2 rounded-lg border border-[#d9e6ef] px-3"><Search className="text-[#8ba0ae]" /><input className="border-0 py-3 outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="名前・ID・部位で検索" /></label><select className="rounded-lg border border-[#d9e6ef] px-3 py-3" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}><option value="all">すべてのステータス</option><option value="pending">未対応</option><option value="in_progress">対応中</option><option value="completed">完了</option></select></div><div className="overflow-x-auto rounded-xl border border-[#e4edf3] bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-[#f5f9fc] text-xs text-[#777]"><tr><th className="px-5 py-4">ID</th><th className="px-5 py-4">お名前</th><th className="px-5 py-4">部位</th><th className="px-5 py-4">ステータス</th><th className="px-5 py-4">受付日時</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer border-t border-[#edf0f2] hover:bg-[#f7fbfd]"><td className="px-5 py-4 font-semibold text-[#2878b8]">{item.id}</td><td className="px-5 py-4 font-bold text-[#333]">{item.name}</td><td className="px-5 py-4">{item.part}</td><td className="px-5 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === 'pending' ? 'bg-[#fff1e6] text-[#c87534]' : item.status === 'in_progress' ? 'bg-[#eaf3fa] text-[#2878b8]' : 'bg-[#e7f6ee] text-[#2c9a63]'}`}>{statusLabel[item.status]}</span></td><td className="px-5 py-4 text-[#777]">{item.createdAt}</td></tr>)}</tbody></table></div></div>}
 
-        {step === 'complete' && <section className="mx-auto max-w-2xl rounded-2xl border border-[#e4edf3] bg-white px-6 py-14 text-center shadow-sm sm:px-10"><div className="mx-auto flex size-20 items-center justify-center rounded-full bg-[#e7f6ee] text-[#2c9a63]"><Check className="size-10" /></div><h1 className="mt-7 text-2xl font-bold text-[#174c74]">受付完了しました</h1><p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#666]">お問い合わせありがとうございます。担当者が内容を確認し、必要に応じてご連絡いたします。</p><button onClick={() => { setForm(initialForm); setFile(null); setStep('form') }} className="mt-9 min-h-12 rounded-lg bg-[#2878b8] px-10 font-bold text-white hover:bg-[#1f679f]">トップへ戻る</button></section>}
-
-        <section id="insurance" className="mx-auto mt-12 max-w-2xl rounded-2xl bg-[#eaf3fa] p-6 sm:p-8"><div className="flex gap-4"><ShieldCheck className="mt-1 shrink-0 text-[#2878b8]" /><div><h2 className="font-bold text-[#174c74]">健康保険について</h2><p className="mt-2 text-sm leading-6 text-[#567]">健康保険に関する詳しいご案内は、準備が整い次第公開します。ご不明な点はお問い合わせください。</p><a href="#" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#2878b8]">詳しく見る <ChevronRight /></a></div></div></section>
-      </div>
-      <footer className="border-t border-[#e5e7eb] bg-white px-5 py-6 text-center text-xs text-[#888]">© 2026 あおぞら義肢装具 ｜ 個人情報保護方針</footer>
-    </main>
-  )
+    {selected && <div className="fixed inset-0 z-10 flex items-center justify-center bg-[#174c74]/30 p-4" onClick={() => setSelected(null)}><section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8" onClick={(e) => e.stopPropagation()}><div className="flex items-start justify-between"><div><p className="text-sm font-bold text-[#2878b8]">{selected.id}</p><h2 className="mt-1 text-2xl font-bold text-[#174c74]">お問い合わせ詳細</h2></div><button onClick={() => setSelected(null)} aria-label="閉じる" className="rounded-lg p-2 text-[#789] hover:bg-[#f5f9fc]"><X /></button></div><dl className="mt-7 grid gap-4 text-sm sm:grid-cols-2"><Detail label="お名前" value={selected.name} /><Detail label="メールアドレス" value={selected.email} /><Detail label="電話番号" value={selected.phone || '未入力'} /><Detail label="相談区分" value={selected.type} /><Detail label="対象部位・種類" value={selected.part} /><Detail label="受付日時" value={selected.createdAt} /><div className="sm:col-span-2"><dt className="font-bold text-[#777]">相談内容</dt><dd className="mt-2 rounded-lg bg-[#f7fafc] p-4 leading-7">{selected.details}</dd></div><div className="sm:col-span-2"><dt className="font-bold text-[#777]">添付ファイル</dt><dd className="mt-2 flex items-center gap-2 text-[#2878b8]">{selected.file ? <><FileText />{selected.file}</> : '添付ファイルなし'}</dd></div></dl><div className="mt-7 flex flex-col gap-3 border-t border-[#edf0f2] pt-6 sm:flex-row sm:items-end"><Field label="現在のステータス"><select value={selected.status} onChange={(e) => updateStatus(e.target.value as Status)}><option value="pending">未対応</option><option value="in_progress">対応中</option><option value="completed">完了</option></select></Field><button onClick={() => setSelected(null)} className="min-h-12 rounded-lg bg-[#2878b8] px-7 font-bold text-white">更新して閉じる</button></div></section></div>}
+    <footer className="mt-12 border-t border-[#e5e7eb] bg-white px-5 py-6 text-center text-xs text-[#888]">© 2026 あおぞら義肢装具 ｜ 個人情報保護方針</footer>
+  </main>
 }
 
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
-  return <div className="flex flex-col gap-2"><label className="text-sm font-bold text-[#444]">{label} {required && <span className="ml-1 rounded bg-[#fff1e6] px-2 py-1 text-[11px] font-semibold text-[#c87534]">必須</span>}</label>{hint && <p className="-mt-1 text-xs text-[#888]">{hint}</p>}<div className="form-control">{children}</div></div>
-}
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) { return <div className="flex flex-1 flex-col gap-2"><label className="text-sm font-bold text-[#444]">{label} {required && <span className="ml-1 rounded bg-[#fff1e6] px-2 py-1 text-[11px] font-semibold text-[#c87534]">必須</span>}</label>{hint && <p className="-mt-1 text-xs text-[#888]">{hint}</p>}<div className="form-control">{children}</div></div> }
+function Detail({ label, value }: { label: string; value: string }) { return <div><dt className="font-bold text-[#777]">{label}</dt><dd className="mt-1 text-[#333]">{value}</dd></div> }
+function InfoCard({ onClick }: { onClick: () => void }) { return <section className="mx-auto mt-12 max-w-2xl rounded-2xl bg-[#eaf3fa] p-6 sm:p-8"><div className="flex gap-4"><ShieldCheck className="mt-1 shrink-0 text-[#2878b8]" /><div><h2 className="font-bold text-[#174c74]">健康保険について</h2><p className="mt-2 text-sm leading-6 text-[#567]">義肢装具に関する健康保険のご案内をご確認いただけます。</p><button onClick={onClick} className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#2878b8]">詳しく見る <ChevronRight /></button></div></div></section> }
