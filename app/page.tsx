@@ -26,6 +26,7 @@ type Inquiry = {
 }
 
 const initialForm = { name: '', email: '', phone: '', type: '', part: '', details: '', consent: false }
+const inquiryColumns = 'id, name, email, phone, inquiry_type, message, status, created_at'
 
 export default function Page() {
   const [view, setView] = useState<View>('contact')
@@ -50,7 +51,7 @@ export default function Page() {
       setIsLoadingInquiries(true)
       const { data, error } = await supabase
         .from('inquiries')
-        .select('id, name, email, phone, inquiry_type, message, status, created_at')
+        .select(inquiryColumns)
         .order('created_at', { ascending: false })
       
       if (error) {
@@ -114,7 +115,7 @@ export default function Page() {
     setStep('confirm')
   }
 
-  // Supabaseへ実際にデータを挿入する処理
+  // inquiries テーブルへ直接 insert して受付結果を取得する処理
   async function submitToSupabase() {
     const { data, error } = await supabase
       .from('inquiries')
