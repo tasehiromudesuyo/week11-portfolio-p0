@@ -1,13 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useMemo, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, LockKeyhole, LogOut, Paperclip, Search, ShieldCheck, X } from 'lucide-react'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-)
 
 type View = 'contact' | 'insurance' | 'admin'
 type Status = 'pending' | 'in_progress' | 'completed'
@@ -26,17 +20,27 @@ type Inquiry = {
 }
 
 const initialForm = { name: '', email: '', phone: '', type: '', part: '', details: '', consent: false }
-const inquiryColumns = 'id, name, email, phone, inquiry_type, message, status, created_at'
-
 export default function Page() {
   const [view, setView] = useState<View>('contact')
   const [step, setStep] = useState<'form' | 'confirm' | 'complete'>('form')
   const [form, setForm] = useState(initialForm)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState('')
-  const [inquiries, setInquiries] = useState<Inquiry[]>([])
+  const [inquiries, setInquiries] = useState<Inquiry[]>([
+    {
+      id: 'demo-001',
+      name: '山田 太郎',
+      email: 'taro@example.jp',
+      phone: '090-0000-0000',
+      type: '新しく作りたい',
+      part: '下肢装具',
+      details: '採型と製作について相談したいです。',
+      file: null,
+      status: 'pending',
+      createdAt: '2026/11/08 10:30',
+    },
+  ])
   const [selected, setSelected] = useState<Inquiry | null>(null)
-  const [isLoadingInquiries, setIsLoadingInquiries] = useState(false)
   const [dataError, setDataError] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
@@ -44,45 +48,6 @@ export default function Page() {
   const [adminId, setAdminId] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [adminLoginError, setAdminLoginError] = useState('')
-
-  // Supabaseから問い合わせ一覧を取得
-  useEffect(() => {
-    async function loadInquiries() {
-      setIsLoadingInquiries(true)
-      const { data, error } = await supabase
-        .from('inquiries')
-        .select(inquiryColumns)
-        .order('created_at', { ascending: false })
-      
-      if (error) {
-        setDataError('お問い合わせ一覧を取得できませんでした。')
-      } else {
-        setInquiries(
-          (data ?? []).map((item) => {
-            // メッセージから「対象部位・種類」と「ご相談内容」を復元するパース処理
-            const messageParts = item.message.split('\n\n【ご相談内容】\n')
-            const partLine = messageParts[0]?.replace('【対象部位・種類】\n', '') || ''
-            const detailsText = messageParts[1] || item.message
-
-            return {
-              id: item.id,
-              name: item.name,
-              email: item.email,
-              phone: item.phone ?? '',
-              type: item.inquiry_type,
-              part: partLine,
-              details: detailsText,
-              file: null,
-              status: item.status === '対応中' ? 'in_progress' : item.status === '完了' ? 'completed' : 'pending',
-              createdAt: new Date(item.created_at).toLocaleString('ja-JP'),
-            }
-          })
-        )
-      }
-      setIsLoadingInquiries(false)
-    }
-    loadInquiries()
-  }, [])
 
   const filtered = useMemo(() => inquiries.filter((item) => {
     const matchesQuery = `${item.name} ${item.id} ${item.part}`.toLowerCase().includes(query.toLowerCase())
@@ -115,57 +80,25 @@ export default function Page() {
     setStep('confirm')
   }
 
-  // inquiries テーブルへ直接 insert して受付結果を取得する処理
-  async function submitToSupabase() {
-    const { data, error } = await supabase
-      .from('inquiries')
-      .insert({
-        name: form.name,
-        email: form.email,
-        phone: form.phone || null,
-        inquiry_type: form.type,
-        message: `【対象部位・種類】\n${form.part}\n\n【ご相談内容】\n${form.details}`,
-        status: '未対応',
-      })
-      .select('id, created_at')
-      .single()
-
-    if (error) {
-      console.error('Supabase Error:', error)
-      setError('お問い合わせを送信できませんでした。時間をおいて再度お試しください。')
-      return
+  function submitInquiry() {
+    const newInquiry: Inquiry = {
+      id: `demo-${Date.now()}`,
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      type: form.type,
+      part: form.part,
+      details: form.details,
+      file: file?.name ?? null,
+      status: 'pending',
+      createdAt: new Date().toLocaleString('ja-JP'),
     }
-
-    setInquiries((items) => [
-      {
-        id: data.id,
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        type: form.type,
-        part: form.part,
-        details: form.details,
-        file: file?.name ?? null,
-        status: 'pending',
-        createdAt: new Date(data.created_at).toLocaleString('ja-JP'),
-      },
-      ...items,
-    ])
+    setInquiries((items) => [newInquiry, ...items])
     setStep('complete')
   }
 
-  async function updateStatus(status: Status) {
+  function updateStatus(status: Status) {
     if (!selected) return
-    const statusValue = status === 'in_progress' ? '対応中' : status === 'completed' ? '完了' : '未対応'
-    const { error } = await supabase
-      .from('inquiries')
-      .update({ status: statusValue, updated_at: new Date().toISOString() })
-      .eq('id', selected.id)
-
-    if (error) {
-      setDataError('ステータスを更新できませんでした。')
-      return
-    }
     setInquiries((items) => items.map((item) => item.id === selected.id ? { ...item, status } : item))
     setSelected({ ...selected, status })
   }
@@ -281,7 +214,7 @@ export default function Page() {
               </div>
               <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                 <button onClick={() => setStep('form')} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#b9d1e1] px-6 font-semibold text-[#2878b8]"><ChevronLeft />戻って修正する</button>
-                <button onClick={submitToSupabase} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white">入力・送信</button>
+                <button onClick={submitInquiry} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white">入力・送信</button>
               </div>
             </section>
           )}
