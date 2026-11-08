@@ -48,6 +48,7 @@ export default function Page() {
   const [adminId, setAdminId] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [adminLoginError, setAdminLoginError] = useState('')
+  const [insuranceDetail, setInsuranceDetail] = useState<'overview' | 'kyokai' | 'kokumin' | 'koki' | 'disability'>('overview')
 
   const filtered = useMemo(() => inquiries.filter((item) => {
     const matchesQuery = `${item.name} ${item.id} ${item.part}`.toLowerCase().includes(query.toLowerCase())
@@ -247,23 +248,29 @@ export default function Page() {
               </ul>
             </div>
 
-            <div className="mt-8 grid gap-4">
-              <article className="rounded-xl border border-[#d9e6ef] p-6">
-                <h2 className="text-xl font-bold text-[#174c74]">① 協会けんぽ（全国健康保険協会）</h2>
-                <p className="mt-2 text-sm text-[#567]">会社員やそのご家族などが加入する健康保険です。原則7割還付（自己負担3割、未就学児は8割還付）です。</p>
-                <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>病院を受診し、型取り・装具の受け取りを行います。</li><li>製作費を全額支払い、領収書を受け取ります。</li><li>療養費支給申請書を入手・記入します。</li><li>必要書類を協会けんぽ支部または会社窓口へ提出します。</li><li>審査後、指定口座へ約1〜2か月後に振り込まれます。</li></ol>
-              </article>
-              <article className="rounded-xl border border-[#d9e6ef] p-6">
-                <h2 className="text-xl font-bold text-[#174c74]">② 国民健康保険（国保）</h2>
-                <p className="mt-2 text-sm text-[#567]">自営業、主婦、退職者などが加入する市区町村主体の健康保険です。給付割合は年齢や所得により異なります。</p>
-                <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>病院を受診し、装具を受け取り、代金を全額支払います。</li><li>お住まいの市区町村役所の国民健康保険課へ行きます。</li><li>共通書類に加え、世帯主のマイナンバー確認書類・本人確認書類を提出します。</li><li>審査後、世帯主名義の口座へ還付されます。</li></ol>
-              </article>
-              <article className="rounded-xl border border-[#d9e6ef] p-6">
-                <h2 className="text-xl font-bold text-[#174c74]">③ 後期高齢者医療制度</h2>
-                <p className="mt-2 text-sm text-[#567]">75歳以上の方、または一定の障害認定を受けた65歳〜74歳の方が対象です。原則9割還付（所得により8割・7割）です。</p>
-                <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>病院を受診し、装具を受け取り、代金を全額支払います。</li><li>市区町村役所の後期高齢者医療窓口へ申請します。</li><li>共通書類に加え、本人のマイナンバー確認書類・受給者証を提出します。</li><li>審査後、本人名義の口座へ還付されます。</li></ol>
-              </article>
-            </div>
+            {insuranceDetail === 'overview' ? (
+              <div className="mt-8 grid gap-4">
+                {[
+                  { key: 'kyokai' as const, title: '① 協会けんぽ（全国健康保険協会）', text: '会社員やそのご家族などが加入する健康保険です。療養費の申請方法をご案内します。' },
+                  { key: 'kokumin' as const, title: '② 国民健康保険（国保）', text: '自営業、主婦、退職者などが加入する市区町村主体の健康保険です。' },
+                  { key: 'koki' as const, title: '③ 後期高齢者医療制度', text: '75歳以上の方、または一定の障害認定を受けた方が対象の制度です。' },
+                  { key: 'disability' as const, title: '④ 補装具費支給制度', text: '身体障害者手帳による更生用装具の事前申請・判定についてご案内します。' },
+                ].map((item) => (
+                  <button key={item.key} onClick={() => setInsuranceDetail(item.key)} className="group rounded-xl border border-[#d9e6ef] p-6 text-left transition hover:border-[#2878b8] hover:bg-[#f7fbfd]">
+                    <div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold text-[#174c74]">{item.title}</h2><p className="mt-2 text-sm leading-6 text-[#567]">{item.text}</p></div><ChevronRight className="shrink-0 text-[#2878b8] transition group-hover:translate-x-1" /></div>
+                    <span className="mt-4 inline-block text-sm font-bold text-[#2878b8]">制度の詳細を見る</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-8 rounded-xl border border-[#d9e6ef] p-6">
+                <button onClick={() => setInsuranceDetail('overview')} className="mb-6 flex items-center gap-2 text-sm font-bold text-[#2878b8]"><ChevronLeft />制度一覧へ戻る</button>
+                {insuranceDetail === 'kyokai' && <InsuranceDetail title="① 協会けんぽ（全国健康保険協会）" description="会社員やそのご家族などが加入する健康保険です。原則7割還付（自己負担3割、未就学児は8割還付）です。" steps={['病院を受診し、型取り・装具の受け取りを行います。','製作費を全額支払い、領収書を受け取ります。','療養費支給申請書を入手・記入します。','必要書類を協会けんぽ支部または会社窓口へ提出します。','審査後、指定口座へ約1〜2か月後に振り込まれます。']} />}
+                {insuranceDetail === 'kokumin' && <InsuranceDetail title="② 国民健康保険（国保）" description="自営業、主婦、退職者などが加入する市区町村主体の健康保険です。給付割合は年齢や所得により異なります。" steps={['病院を受診し、装具を受け取り、代金を全額支払います。','お住まいの市区町村役所の国民健康保険課へ行きます。','共通書類に加え、世帯主のマイナンバー確認書類・本人確認書類を提出します。','審査後、世帯主名義の口座へ還付されます。']} />}
+                {insuranceDetail === 'koki' && <InsuranceDetail title="③ 後期高齢者医療制度" description="75歳以上の方、または一定の障害認定を受けた65歳〜74歳の方が対象です。原則9割還付（所得により8割・7割）です。" steps={['病院を受診し、装具を受け取り、代金を全額支払います。','市区町村役所の後期高齢者医療窓口へ申請します。','共通書類に加え、本人のマイナンバー確認書類・受給者証を提出します。','審査後、本人名義の口座へ還付されます。']} />}
+                {insuranceDetail === 'disability' && <InsuranceDetail title="④ 身体障害者手帳による手続き（補装具費支給制度）" description="日常生活のための更生用装具は、事前申請と判定を経て、原則1割負担で製作します。世帯所得に応じた月額上限があります。" steps={['市区町村役所の障害福祉課へ事前相談・申請します。','指定医から補装具費支給意見書を取得します。','義肢装具会社から見積書を取得します。','障害者更生相談所の判定を受けます。','支給決定・支給券の交付後、契約・採型・製作を行います。','適合判定後、自己負担分を支払い受け取ります。']} />}
+              </div>
+            )}
 
             <div className="mt-8 rounded-xl border border-[#cfe3ef] bg-[#eef7fb] p-6">
               <h2 className="text-xl font-bold text-[#174c74]">身体障害者手帳による手続き（補装具費支給制度）</h2>
@@ -408,6 +415,19 @@ function Detail({ label, value }: { label: string; value: string }) {
       <dd className="mt-1 text-[#333]">{value}</dd>
     </div>
   ) 
+}
+
+function InsuranceDetail({ title, description, steps }: { title: string; description: string; steps: string[] }) {
+  return (
+    <div>
+      <h2 className="text-2xl font-bold leading-relaxed text-[#174c74]">{title}</h2>
+      <p className="mt-3 text-sm leading-7 text-[#567]">{description}</p>
+      <h3 className="mt-7 text-lg font-bold text-[#174c74]">申請の流れ</h3>
+      <ol className="mt-4 grid gap-3 text-sm leading-7 text-[#666]">
+        {steps.map((step, index) => <li key={step} className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#eaf3fa] text-xs font-bold text-[#2878b8]">{index + 1}</span><span>{step}</span></li>)}
+      </ol>
+    </div>
+  )
 }
 
 function InfoCard({ onClick }: { onClick: () => void }) { 
