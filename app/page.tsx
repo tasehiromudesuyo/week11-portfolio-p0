@@ -233,18 +233,45 @@ export default function Page() {
       )}
 
       {view === 'insurance' && (
-        <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8">
+        <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
           <section className="rounded-2xl border border-[#e4edf3] bg-white p-7 shadow-sm sm:p-10">
             <ShieldCheck className="text-[#2878b8]" />
-            <h1 className="mt-5 text-3xl font-bold text-[#174c74]">健康保険について</h1>
-            <p className="mt-4 text-sm leading-7 text-[#666]">義肢装具に関する健康保険のご案内を、保険の種類ごとにご確認いただけます。具体的な適用条件や給付内容は、担当窓口へご確認ください。</p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              {['健康保険（協会けんぽ）','国民健康保険','後期高齢者医療制度','その他の公的制度'].map((name) => (
-                <button key={name} className="flex items-center justify-between rounded-xl border border-[#d9e6ef] p-5 text-left font-bold text-[#174c74] hover:border-[#2878b8] hover:bg-[#f7fbfd]">
-                  {name}<ChevronRight className="text-[#2878b8]" />
-                </button>
-              ))}
+            <h1 className="mt-5 text-3xl font-bold text-[#174c74]">健康保険・公的制度について</h1>
+            <p className="mt-4 text-sm leading-7 text-[#666]">義肢装具を作製する場合に利用できる主な制度と、申請の流れをご案内します。適用条件や必要書類は保険者・自治体によって異なるため、必ず担当窓口へご確認ください。</p>
+
+            <div className="mt-8 rounded-xl bg-[#f5f9fc] p-6">
+              <h2 className="text-lg font-bold text-[#174c74]">医療保険共通の準備書類</h2>
+              <p className="mt-2 text-sm leading-6 text-[#666]">治療用装具は、いったん製作費の全額をお支払いいただき、後から自己負担分を除いた金額の療養費支給を申請します。</p>
+              <ul className="mt-4 grid gap-2 text-sm leading-6 text-[#567] sm:grid-cols-2">
+                {['医師の証明書（意見書および装着証明書など）','義肢装具会社の領収書（原本）','療養費支給申請書（各保険者の様式）','振込先口座の情報（通帳・キャッシュカードなど）','内訳書・靴型装具の写真（必要な場合）'].map((item) => <li key={item} className="flex gap-2"><span className="text-[#2878b8]">●</span>{item}</li>)}
+              </ul>
             </div>
+
+            <div className="mt-8 grid gap-4">
+              <article className="rounded-xl border border-[#d9e6ef] p-6">
+                <h2 className="text-xl font-bold text-[#174c74]">① 協会けんぽ（全国健康保険協会）</h2>
+                <p className="mt-2 text-sm text-[#567]">会社員やそのご家族などが加入する健康保険です。原則7割還付（自己負担3割、未就学児は8割還付）です。</p>
+                <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>病院を受診し、型取り・装具の受け取りを行います。</li><li>製作費を全額支払い、領収書を受け取ります。</li><li>療養費支給申請書を入手・記入します。</li><li>必要書類を協会けんぽ支部または会社窓口へ提出します。</li><li>審査後、指定口座へ約1〜2か月後に振り込まれます。</li></ol>
+              </article>
+              <article className="rounded-xl border border-[#d9e6ef] p-6">
+                <h2 className="text-xl font-bold text-[#174c74]">② 国民健康保険（国保）</h2>
+                <p className="mt-2 text-sm text-[#567]">自営業、主婦、退職者などが加入する市区町村主体の健康保険です。給付割合は年齢や所得により異なります。</p>
+                <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>病院を受診し、装具を受け取り、代金を全額支払います。</li><li>お住まいの市区町村役所の国民健康保険課へ行きます。</li><li>共通書類に加え、世帯主のマイナンバー確認書類・本人確認書類を提出します。</li><li>審査後、世帯主名義の口座へ還付されます。</li></ol>
+              </article>
+              <article className="rounded-xl border border-[#d9e6ef] p-6">
+                <h2 className="text-xl font-bold text-[#174c74]">③ 後期高齢者医療制度</h2>
+                <p className="mt-2 text-sm text-[#567]">75歳以上の方、または一定の障害認定を受けた65歳〜74歳の方が対象です。原則9割還付（所得により8割・7割）です。</p>
+                <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>病院を受診し、装具を受け取り、代金を全額支払います。</li><li>市区町村役所の後期高齢者医療窓口へ申請します。</li><li>共通書類に加え、本人のマイナンバー確認書類・受給者証を提出します。</li><li>審査後、本人名義の口座へ還付されます。</li></ol>
+              </article>
+            </div>
+
+            <div className="mt-8 rounded-xl border border-[#cfe3ef] bg-[#eef7fb] p-6">
+              <h2 className="text-xl font-bold text-[#174c74]">身体障害者手帳による手続き（補装具費支給制度）</h2>
+              <p className="mt-2 text-sm leading-6 text-[#567]">日常生活のための更生用装具は、事前申請と判定を経て、原則1割負担で製作します。世帯所得に応じた月額上限があり、非課税世帯は0円です。</p>
+              <ol className="mt-4 grid gap-2 text-sm leading-6 text-[#666] list-decimal pl-5"><li>市区町村役所の障害福祉課へ事前相談・申請します。</li><li>指定医から補装具費支給意見書を取得します。</li><li>義肢装具会社から見積書を取得します。</li><li>障害者更生相談所の判定を受けます。</li><li>支給決定・支給券の交付後、契約・採型・製作を行います。</li><li>適合判定後、自己負担分を支払い受け取ります。</li></ol>
+            </div>
+
+            <p className="mt-8 rounded-lg bg-[#fff9ed] px-4 py-3 text-sm leading-6 text-[#765d2d]">制度の内容は変更される場合があります。申請前に、加入している保険者またはお住まいの自治体へ最新情報をご確認ください。</p>
             <button onClick={() => setView('contact')} className="mt-9 flex items-center gap-2 font-bold text-[#2878b8]"><ChevronLeft />お問い合わせへ戻る</button>
           </section>
         </div>
