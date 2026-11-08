@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, LockKeyhole, LogOut, Paperclip, Search, ShieldCheck, X } from 'lucide-react'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 type View = 'contact' | 'insurance' | 'admin'
 type Status = 'pending' | 'in_progress' | 'completed'
@@ -26,23 +27,42 @@ export default function Page() {
   const [form, setForm] = useState(initialForm)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState('')
-  const [inquiries, setInquiries] = useState<Inquiry[]>([
-    {
-      id: 'demo-001',
-      name: '山田 太郎',
-      email: 'taro@example.jp',
-      phone: '090-0000-0000',
-      type: '新しく作りたい',
-      part: '下肢装具',
-      details: '採型と製作について相談したいです。',
-      file: null,
-      status: 'pending',
-      createdAt: '2026/11/08 10:30',
-    },
-  ])
+  const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [selected, setSelected] = useState<Inquiry | null>(null)
   const [dataError, setDataError] = useState('')
   const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const loadInquiries = async () => {
+      const { data, error } = await getSupabaseClient()
+        .from('inquiries')
+        .select('id, created_at, name, email, phone, inquiry_type, message, status')
+        .order('created_at', { ascending: false })
+
+      if (!active) return
+      if (error) {
+        setDataError('お問い合わせデータを読み込めませんでした。')
+        return
+      }
+
+      setInquiries((data ?? []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        email: item.email,
+        phone: item.phone ?? '',
+        type: item.inquiry_type ?? '',
+        part: '',
+        details: item.message,
+        file: null,
+        status: item.status === '対応中' ? 'in_progress' : item.status === '完了' ? 'completed' : 'pending',
+        createdAt: new Date(item.created_at).toLocaleString('ja-JP'),
+      })))
+    }
+
+    void loadInquiries()
+    return () => { active = false }
+  }, [])
   const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
   const [adminAuthenticated, setAdminAuthenticated] = useState(false)
   const [adminId, setAdminId] = useState('')
@@ -81,25 +101,53 @@ export default function Page() {
     setStep('confirm')
   }
 
-  function submitInquiry() {
-    const newInquiry: Inquiry = {
-      id: `demo-${Date.now()}`,
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      type: form.type,
+  async function submitInquiry() {
+    setDataError('')
+    const { data, error: insertError } = await getSupabaseClient()
+      .from('inquiries')
+      .insert({
+        name: form.name,
+        email: form.email,
+        phone: form.phone || null,
+        inquiry_type: form.type,
+        message: `${form.part}\n${form.details}`,
+      })
+      .select('id, created_at, name, email, phone, inquiry_type, message, status')
+      .single()
+
+    if (insertError || !data) {
+      setDataError('お問い合わせを送信できませんでした。時間をおいて再度お試しください。')
+      return
+    }
+
+    setInquiries((items) => [{
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      phone: data.phone ?? '',
+      type: data.inquiry_type,
       part: form.part,
-      details: form.details,
+      details: data.message,
       file: file?.name ?? null,
       status: 'pending',
-      createdAt: new Date().toLocaleString('ja-JP'),
-    }
-    setInquiries((items) => [newInquiry, ...items])
+      createdAt: new Date(data.created_at).toLocaleString('ja-JP'),
+    }, ...items])
     setStep('complete')
   }
 
-  function updateStatus(status: Status) {
+  async function updateStatus(status: Status) {
     if (!selected) return
+    const nextStatus = status === 'in_progress' ? '対応中' : status === 'completed' ? '完了' : '未対応'
+    const { error: updateError } = await getSupabaseClient()
+      .from('inquiries')
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq('id', selected.id)
+
+    if (updateError) {
+      setDataError('ステータスを更新できませんでした。')
+      return
+    }
+
     setInquiries((items) => items.map((item) => item.id === selected.id ? { ...item, status } : item))
     setSelected({ ...selected, status })
   }
@@ -253,7 +301,7 @@ export default function Page() {
                 {[
                   { key: 'kyokai' as const, title: '① 協会けんぽ（全国健康保険協会）', text: '会社員やそのご家族などが加入する健康保険です。療養費の申請方法をご案内します。' },
                   { key: 'kokumin' as const, title: '② 国民健康保険（国保）', text: '自営業、主婦、退職者などが加入する市区町村主体の健康保険です。' },
-                  { key: 'koki' as const, title: '③ 後期高齢者医療制度', text: '75歳以上の方、または一定の障害認定を受けた方が対象の制度です。' },
+                  { key: 'koki' as const, title: '③ 後期高齢者医療制度', text: '75歳以上の方、または一定の障害認定を受けた方が対象の���度です。' },
                   { key: 'disability' as const, title: '④ 補装具費支給制度', text: '身体障害者手帳による更生用装具の事前申請・判定についてご案内します。' },
                 ].map((item) => (
                   <button key={item.key} onClick={() => setInsuranceDetail(item.key)} className="group rounded-xl border border-[#d9e6ef] p-6 text-left transition hover:border-[#2878b8] hover:bg-[#f7fbfd]">
