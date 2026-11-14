@@ -21,6 +21,7 @@ type Inquiry = {
 }
 
 const initialForm = { name: '', email: '', phone: '', type: '', part: '', details: '', consent: false }
+
 export default function Page() {
   const [view, setView] = useState<View>('contact')
   const [step, setStep] = useState<'form' | 'confirm' | 'complete'>('form')
@@ -31,13 +32,20 @@ export default function Page() {
   const [selected, setSelected] = useState<Inquiry | null>(null)
   const [dataError, setDataError] = useState('')
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false)
+  const [adminId, setAdminId] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminLoginError, setAdminLoginError] = useState('')
+  const [insuranceDetail, setInsuranceDetail] = useState<'overview' | 'kyokai' | 'kokumin' | 'koki' | 'disability'>('overview')
 
+  // Supabaseから全項目を取得
   useEffect(() => {
     let active = true
     const loadInquiries = async () => {
       const { data, error } = await getSupabaseClient()
         .from('inquiries')
-        .select('id, created_at, name, email, phone, inquiry_type, message, status')
+        .select('id, created_at, name, email, phone, inquiry_type, target_part, message, file_url, status')
         .order('created_at', { ascending: false })
 
       if (!active) return
@@ -52,9 +60,9 @@ export default function Page() {
         email: item.email,
         phone: item.phone ?? '',
         type: item.inquiry_type ?? '',
-        part: '',
+        part: item.target_part ?? '',
         details: item.message,
-        file: null,
+        file: item.file_url ?? null,
         status: item.status === '対応中' ? 'in_progress' : item.status === '完了' ? 'completed' : 'pending',
         createdAt: new Date(item.created_at).toLocaleString('ja-JP'),
       })))
@@ -63,44 +71,39 @@ export default function Page() {
     void loadInquiries()
     return () => { active = false }
   }, [])
-  const [statusFilter, setStatusFilter] = useState<'all' | Status>('all')
-  const [adminAuthenticated, setAdminAuthenticated] = useState(false)
-  const [adminId, setAdminId] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
-  const [adminLoginError, setAdminLoginError] = useState('')
-  const [insuranceDetail, setInsuranceDetail] = useState<'overview' | 'kyokai' | 'kokumin' | 'koki' | 'disability'>('overview')
 
   const filtered = useMemo(() => inquiries.filter((item) => {
-    const matchesQuery = `${item.name} ${item.id} ${item.part}`.toLowerCase().includes(query.toLowerCase())
+    const matchesQuery = `${item.name} ${item.email} ${item.phone} ${item.id} ${item.part}`.toLowerCase().includes(query.toLowerCase())
     return matchesQuery && (statusFilter === 'all' || item.status === statusFilter)
   }), [inquiries, query, statusFilter])
 
-  function update(key: keyof typeof initialForm, value: string | boolean) { 
+  function update(key: keyof typeof initialForm, value: string | boolean) {
     setForm((current) => ({ ...current, [key]: value }))
-    setError('') 
+    setError('')
   }
 
   function review(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!form.name || !form.email || !form.type || !form.part || !form.details || !form.consent) { 
+    if (!form.name || !form.email || !form.type || !form.part || !form.details || !form.consent) {
       setError('必須項目を入力し、個人情報保護方針に同意してください。')
-      return 
+      return
     }
-    if (!/^\S+@\S+\.\S+$/.test(form.email)) { 
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) {
       setError('メールアドレスの形式をご確認ください。')
-      return 
+      return
     }
-    if (form.phone && !/^[0-9０-９+\-()（）\s]+$/.test(form.phone)) { 
+    if (form.phone && !/^[0-9０-９+\-()（）\s]+$/.test(form.phone)) {
       setError('電話番号の形式をご確認ください。')
-      return 
+      return
     }
-    if (file && file.size > 10 * 1024 * 1024) { 
+    if (file && file.size > 10 * 1024 * 1024) {
       setError('添付ファイルは10MB以内にしてください。')
-      return 
+      return
     }
     setStep('confirm')
   }
 
+  // Supabaseへ全項目を個別に保存
   async function submitInquiry() {
     setDataError('')
     const { data, error: insertError } = await getSupabaseClient()
@@ -110,9 +113,11 @@ export default function Page() {
         email: form.email,
         phone: form.phone || null,
         inquiry_type: form.type,
-        message: `${form.part}\n${form.details}`,
+        target_part: form.part,
+        message: form.details,
+        file_url: file ? file.name : null,
       })
-      .select('id, created_at, name, email, phone, inquiry_type, message, status')
+      .select('id, created_at, name, email, phone, inquiry_type, target_part, message, file_url, status')
       .single()
 
     if (insertError || !data) {
@@ -125,10 +130,10 @@ export default function Page() {
       name: data.name,
       email: data.email,
       phone: data.phone ?? '',
-      type: data.inquiry_type,
-      part: form.part,
+      type: data.inquiry_type ?? '',
+      part: data.target_part ?? '',
       details: data.message,
-      file: file?.name ?? null,
+      file: data.file_url ?? null,
       status: 'pending',
       createdAt: new Date(data.created_at).toLocaleString('ja-JP'),
     }, ...items])
@@ -182,7 +187,7 @@ export default function Page() {
       {view === 'contact' && (
         <div className="mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-14">
           <div className="mb-9 flex items-center justify-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
-            {['入力', '確認', '完了'].map((label, index) => { 
+            {['入力', '確認', '完了'].map((label, index) => {
               const current = step === 'form' ? 0 : step === 'confirm' ? 1 : 2
               return (
                 <div key={label} className="flex items-center gap-2">
@@ -190,7 +195,7 @@ export default function Page() {
                   <span className={index <= current ? 'text-[#2878b8]' : 'text-[#8a9aa8]'}>{label}</span>
                   {index < 2 && <span className="h-px w-8 bg-[#d8e4ec] sm:w-16" />}
                 </div>
-              ) 
+              )
             })}
           </div>
 
@@ -247,12 +252,12 @@ export default function Page() {
               <h1 className="text-2xl font-bold text-[#174c74]">お問い合わせ内容の確認</h1>
               <div className="mt-8 overflow-hidden rounded-xl border border-[#e5e7eb]">
                 {[
-                  ['お名前', form.name], 
-                  ['メールアドレス', form.email], 
-                  ['電話番号', form.phone || '未入力'], 
-                  ['相談区分', form.type], 
-                  ['対象部位・種類', form.part], 
-                  ['相談内容', form.details], 
+                  ['お名前', form.name],
+                  ['メールアドレス', form.email],
+                  ['電話番号', form.phone || '未入力'],
+                  ['相談区分', form.type],
+                  ['対象部位・種類', form.part],
+                  ['相談内容', form.details],
                   ['添付ファイル', file?.name || 'なし']
                 ].map(([label, value]) => (
                   <div key={label} className="grid gap-2 border-b border-[#edf0f2] px-4 py-4 last:border-0 sm:grid-cols-[150px_1fr]">
@@ -261,6 +266,7 @@ export default function Page() {
                   </div>
                 ))}
               </div>
+              {dataError && <p className="mt-4 rounded-lg bg-[#fff3f1] px-4 py-3 text-sm text-[#c24b3d]" role="alert">{dataError}</p>}
               <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                 <button onClick={() => setStep('form')} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#b9d1e1] px-6 font-semibold text-[#2878b8]"><ChevronLeft />戻って修正する</button>
                 <button onClick={submitInquiry} className="min-h-12 rounded-lg bg-[#2878b8] px-8 font-bold text-white">入力・送信</button>
@@ -301,7 +307,7 @@ export default function Page() {
                 {[
                   { key: 'kyokai' as const, title: '① 協会けんぽ（全国健康保険協会）', text: '会社員やそのご家族などが加入する健康保険です。療養費の申請方法をご案内します。' },
                   { key: 'kokumin' as const, title: '② 国民健康保険（国保）', text: '自営業、主婦、退職者などが加入する市区町村主体の健康保険です。' },
-                  { key: 'koki' as const, title: '③ 後期高齢者医療制度', text: '75歳以上の方、または一定の障害認定を受けた方が対象の���度です。' },
+                  { key: 'koki' as const, title: '③ 後期高齢者医療制度', text: '75歳以上の方、または一定の障害認定を受けた方が対象の制度です。' },
                   { key: 'disability' as const, title: '④ 補装具費支給制度', text: '身体障害者手帳による更生用装具の事前申請・判定についてご案内します。' },
                 ].map((item) => (
                   <button key={item.key} onClick={() => setInsuranceDetail(item.key)} className="group rounded-xl border border-[#d9e6ef] p-6 text-left transition hover:border-[#2878b8] hover:bg-[#f7fbfd]">
@@ -358,10 +364,11 @@ export default function Page() {
             </div>
             <button onClick={() => setView('contact')} className="flex items-center gap-2 rounded-lg border border-[#d9e6ef] bg-white px-4 py-2 text-sm font-semibold text-[#567]"><LogOut />ログアウト</button>
           </div>
+          {dataError && <p className="mb-4 rounded-lg bg-[#fff3f1] px-4 py-3 text-sm text-[#c24b3d]" role="alert">{dataError}</p>}
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-[#e4edf3] bg-white p-4 sm:flex-row">
             <label className="flex flex-1 items-center gap-2 rounded-lg border border-[#d9e6ef] px-3">
               <Search className="text-[#8ba0ae]" />
-              <input className="border-0 py-3 outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="名前・ID・部位で検索" />
+              <input className="w-full border-0 py-3 outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="名前・メール・電話番号・ID・部位で検索" />
             </label>
             <select className="rounded-lg border border-[#d9e6ef] px-3 py-3" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
               <option value="all">すべてのステータス</option>
@@ -370,29 +377,38 @@ export default function Page() {
               <option value="completed">完了</option>
             </select>
           </div>
+          {/* 一覧テーブル：全項目を表示 */}
           <div className="overflow-x-auto rounded-xl border border-[#e4edf3] bg-white">
-            <table className="w-full min-w-[700px] text-left text-sm">
+            <table className="w-full min-w-[1000px] text-left text-sm">
               <thead className="bg-[#f5f9fc] text-xs text-[#777]">
                 <tr>
-                  <th className="px-5 py-4">ID</th>
-                  <th className="px-5 py-4">お名前</th>
-                  <th className="px-5 py-4">部位</th>
-                  <th className="px-5 py-4">ステータス</th>
-                  <th className="px-5 py-4">受付日時</th>
+                  <th className="px-4 py-4">受付日時</th>
+                  <th className="px-4 py-4">お名前</th>
+                  <th className="px-4 py-4">メールアドレス</th>
+                  <th className="px-4 py-4">電話番号</th>
+                  <th className="px-4 py-4">相談区分</th>
+                  <th className="px-4 py-4">部位</th>
+                  <th className="px-4 py-4">相談内容</th>
+                  <th className="px-4 py-4">添付</th>
+                  <th className="px-4 py-4">ステータス</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((item) => (
                   <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer border-t border-[#edf0f2] hover:bg-[#f7fbfd]">
-                    <td className="px-5 py-4 font-semibold text-[#2878b8]">{item.id}</td>
-                    <td className="px-5 py-4 font-bold text-[#333]">{item.name}</td>
-                    <td className="px-5 py-4">{item.part}</td>
-                    <td className="px-5 py-4">
+                    <td className="whitespace-nowrap px-4 py-4 text-xs text-[#777]">{item.createdAt}</td>
+                    <td className="whitespace-nowrap px-4 py-4 font-bold text-[#333]">{item.name}</td>
+                    <td className="px-4 py-4 text-[#567]">{item.email}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-[#567]">{item.phone || '-'}</td>
+                    <td className="whitespace-nowrap px-4 py-4">{item.type}</td>
+                    <td className="whitespace-nowrap px-4 py-4">{item.part || '-'}</td>
+                    <td className="max-w-[200px] truncate px-4 py-4 text-[#567]">{item.details}</td>
+                    <td className="px-4 py-4 text-center text-[#2878b8]">{item.file ? <FileText className="mx-auto size-4" /> : '-'}</td>
+                    <td className="whitespace-nowrap px-4 py-4">
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === 'pending' ? 'bg-[#fff1e6] text-[#c87534]' : item.status === 'in_progress' ? 'bg-[#eaf3fa] text-[#2878b8]' : 'bg-[#e7f6ee] text-[#2c9a63]'}`}>
                         {statusLabel[item.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-[#777]">{item.createdAt}</td>
                   </tr>
                 ))}
               </tbody>
@@ -416,11 +432,11 @@ export default function Page() {
               <Detail label="メールアドレス" value={selected.email} />
               <Detail label="電話番号" value={selected.phone || '未入力'} />
               <Detail label="相談区分" value={selected.type} />
-              <Detail label="対象部位・種類" value={selected.part} />
+              <Detail label="対象部位・種類" value={selected.part || '未入力'} />
               <Detail label="受付日時" value={selected.createdAt} />
               <div className="sm:col-span-2">
                 <dt className="font-bold text-[#777]">相談内容</dt>
-                <dd className="mt-2 rounded-lg bg-[#f7fafc] p-4 leading-7">{selected.details}</dd>
+                <dd className="mt-2 whitespace-pre-wrap rounded-lg bg-[#f7fafc] p-4 leading-7">{selected.details}</dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="font-bold text-[#777]">添付ファイル</dt>
@@ -446,23 +462,23 @@ export default function Page() {
   )
 }
 
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) { 
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-1 flex-col gap-2">
       <label className="text-sm font-bold text-[#444]">{label} {required && <span className="ml-1 rounded bg-[#fff1e6] px-2 py-1 text-[11px] font-semibold text-[#c87534]">必須</span>}</label>
       {hint && <p className="-mt-1 text-xs text-[#888]">{hint}</p>}
       <div className="form-control">{children}</div>
     </div>
-  ) 
+  )
 }
 
-function Detail({ label, value }: { label: string; value: string }) { 
+function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="font-bold text-[#777]">{label}</dt>
       <dd className="mt-1 text-[#333]">{value}</dd>
     </div>
-  ) 
+  )
 }
 
 function InsuranceDetail({ title, description, steps }: { title: string; description: string; steps: string[] }) {
@@ -478,7 +494,7 @@ function InsuranceDetail({ title, description, steps }: { title: string; descrip
   )
 }
 
-function InfoCard({ onClick }: { onClick: () => void }) { 
+function InfoCard({ onClick }: { onClick: () => void }) {
   return (
     <section className="mx-auto mt-12 max-w-2xl rounded-2xl bg-[#eaf3fa] p-6 sm:p-8">
       <div className="flex gap-4">
@@ -490,5 +506,5 @@ function InfoCard({ onClick }: { onClick: () => void }) {
         </div>
       </div>
     </section>
-  ) 
+  )
 }
