@@ -103,9 +103,29 @@ export default function Page() {
     setStep('confirm')
   }
 
-  // Supabaseへ全項目を個別に保存
+  // Supabase Storageへのファイルアップロード & データベース保存
   async function submitInquiry() {
     setDataError('')
+    let filePath = null
+
+    // 1. ファイルが選択されている場合、Supabase Storageにアップロード
+    if (file) {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+      
+      const { error: uploadError } = await getSupabaseClient()
+        .storage
+        .from('inquiry-files')
+        .upload(fileName, file)
+
+      if (uploadError) {
+        setDataError('ファイルのアップロードに失敗しました。')
+        return
+      }
+      filePath = fileName
+    }
+
+    // 2. データベースにお問い合わせデータを保存
     const { data, error: insertError } = await getSupabaseClient()
       .from('inquiries')
       .insert({
@@ -115,7 +135,7 @@ export default function Page() {
         inquiry_type: form.type,
         target_part: form.part,
         message: form.details,
-        file_url: file ? file.name : null,
+        file_url: filePath,
       })
       .select('id, created_at, name, email, phone, inquiry_type, target_part, message, file_url, status')
       .single()
@@ -155,6 +175,16 @@ export default function Page() {
 
     setInquiries((items) => items.map((item) => item.id === selected.id ? { ...item, status } : item))
     setSelected({ ...selected, status })
+  }
+
+  // Storageのファイル公開URLを取得するヘルパー
+  const getFileUrl = (path: string | null) => {
+    if (!path) return '#'
+    const { data } = getSupabaseClient()
+      .storage
+      .from('inquiry-files')
+      .getPublicUrl(path)
+    return data.publicUrl
   }
 
   function loginAdmin(event: React.FormEvent<HTMLFormElement>) {
@@ -377,7 +407,6 @@ export default function Page() {
               <option value="completed">完了</option>
             </select>
           </div>
-          {/* 一覧テーブル：全項目を表示 */}
           <div className="overflow-x-auto rounded-xl border border-[#e4edf3] bg-white">
             <table className="w-full min-w-[1000px] text-left text-sm">
               <thead className="bg-[#f5f9fc] text-xs text-[#777]">
@@ -440,7 +469,20 @@ export default function Page() {
               </div>
               <div className="sm:col-span-2">
                 <dt className="font-bold text-[#777]">添付ファイル</dt>
-                <dd className="mt-2 flex items-center gap-2 text-[#2878b8]">{selected.file ? <><FileText />{selected.file}</> : '添付ファイルなし'}</dd>
+                <dd className="mt-2 flex items-center gap-2 text-[#2878b8]">
+                  {selected.file ? (
+                    <a 
+                      href={getFileUrl(selected.file)} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="flex items-center gap-2 underline hover:text-[#1f679f]"
+                    >
+                      <FileText /> ファイルを開く（ダウンロード）
+                    </a>
+                  ) : (
+                    '添付ファイルなし'
+                  )}
+                </dd>
               </div>
             </dl>
             <div className="mt-7 flex flex-col gap-3 border-t border-[#edf0f2] pt-6 sm:flex-row sm:items-end">
